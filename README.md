@@ -7,7 +7,7 @@ For any questions or requests, contact me under karimaed@gmx.de.
 
 The separation into subfolders was intended, but made counterproductive by pythons default behaviour regarding imports.
 
-The report for this can be found under https://www.overleaf.com/read/scbnbrjtfbvb
+The report for this can be found [here](https://www.overleaf.com/read/scbnbrjtfbvb).
 
 DISCLAIMER: The issue with figures not showing up during runtime is known. See "Troubleshooting" for more information.
 
