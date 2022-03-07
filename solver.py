@@ -15,6 +15,7 @@ import linalg
 from system import System
 from conv import h
 
+
 def neighbours(i_j):
     """
     
@@ -32,12 +33,10 @@ def neighbours(i_j):
 
     """
     i, j = i_j
-    return [(i-1, j), # bottom 
-            (i, j-1), # left
-            (i+1, j), # top
-            (i, j+1)] # right
-
-
+    return [(i - 1, j),  # bottom
+            (i, j - 1),  # left
+            (i + 1, j),  # top
+            (i, j + 1)]  # right
 
 
 class Solver(ABC):
@@ -82,8 +81,6 @@ class Solver(ABC):
         if mode.upper() not in cls.modes:
             raise ValueError("Mode must be 'NATURAL' or 'FORCED' identifier.")
 
-
-
     def __init__(self, sys, mode="NATURAL", velocity=0):
         """
         The solver constructor.
@@ -109,45 +106,45 @@ class Solver(ABC):
         None.
 
         """
-        
+
         # check if the mode used is valid, i.e. natural or forced
         self.check_mode(mode)
 
         # check type of system
         if not isinstance(sys, System):
             raise TypeError("sys is not a System.")
-        
+
         # Match velocity and mode conditions (Velocity only works with forced
         # convection)
         if velocity != 0 and mode not in ("FORCED", "FOR", "F"):
             raise ValueError("v!=0 allowed only in mode 'FORCED'.")
-        elif mode in ("FORCED", "FOR", "F") and velocity <= 0:
+        if mode in ("FORCED", "FOR", "F") and velocity <= 0:
             raise ValueError("v must be positive in mode 'FORCED'.")
-        
+
         # store the parameters
         self.sys = sys
         self.mode = mode
         self.velocity = velocity
-        
+
         # select the region which is the processor
         self.core = np.where(sys.layout == 1, True, False)
-        
+
         # create the empty array used as a 2d to 1d map
         self.map = []
-        
+
         # calculate the step size from the resolution
-        self.h = 1/sys.resolution
-        
+        self.h = 1 / sys.resolution
+
         # generate the 2d to 1d map
         self.gen_map()
-        
+
         # set up the initial temperature map (in T-T_air)
         self.init_temp()
-        
+
         # generate the matrix and RHS vector whose solution is the temperature
         # map of the system (or variation thereof).
         self.gen_lin_alg()
-        
+
         # used in the relaxation solver to store the solution matrix inverse
         self.inv = None
 
@@ -185,7 +182,6 @@ class Solver(ABC):
         self.temp = np.zeros(self.sys.layout.shape)
         return self.temp
 
-
     def gen_lin_alg(self):
         """
         This generates the linear algebra components required for all methods.
@@ -203,63 +199,62 @@ class Solver(ABC):
         None.
 
         """
-        
-        #=====================================================================
-        #The matrix is designed to include the thermal conductivities.
-        #This allows it to average thermal conductivities and appropriately
-        #scale the corresponding contributions to the matrix.
-        #=====================================================================
-        
+
+        # =====================================================================
+        # The matrix is designed to include the thermal conductivities.
+        # This allows it to average thermal conductivities and appropriately
+        # scale the corresponding contributions to the matrix.
+        # =====================================================================
+
         # set up empty arrays to fill up
         self.mat = []
         self.outer_nb_infos = []
         self.b_vector = []
 
         # for each point in the system
-        for i in range(len(self.map)):
+        for i, pos in enumerate(self.map):
 
             # get the position and material and store to use when looking for
             # outer edges
-            pos = self.map[i]
             matter = self.sys.materials[self.sys.layout[pos]]
             outer_nb_info = [pos, matter]
-            
+
             # calculate the power value for the RHS vector and append it
-            b_value = -matter.power*self.h*self.h
+            b_value = -matter.power * self.h * self.h
             self.b_vector.append(b_value)
-            
+
             # initialise matrix row at zeros, as it will be a sparse matrix
             mat_row = np.zeros(len(self.map))
-            
+
             # consider all of the neighbours to the point
             for nb in neighbours(pos):
-                
+
                 # if the neighbour is not air
                 if nb in self.map:
-                    
+
                     # get it's material
                     nb_material = self.sys.materials[self.sys.layout[nb]]
-                    
+
                     # calculate mean conductivity and store it as neighbour
                     # conductivity
-                    k = (nb_material.conductivity+matter.conductivity)/2
+                    k = (nb_material.conductivity + matter.conductivity) / 2
                     mat_row[self.map.index(nb)] = k
-                
+
                 # if the neighbour is air
                 else:
                     # assume ficticiousextension with the same material as
                     # here and store that.
                     k = matter.conductivity
                     outer_nb_info.append(nb)
-                
+
                 # each of the neighbours contributes once to the matrix value
                 # on the diagonal, either with the k at pos or the avg. val
                 mat_row[i] -= k
-            
+
             # fill up arrays
             self.mat.append(mat_row)
             self.outer_nb_infos.append(outer_nb_info)
-        
+
         # return proper ndarrays
         self.mat = np.stack(self.mat)
         self.b_vector = np.array(self.b_vector)
@@ -301,47 +296,46 @@ class Solver(ABC):
         # if the forward difference scheme is used
         if not cds_outer_pos:
             # get the convection contribution across the boundary
-            grad = h(self.temp[ij], self.velocity)*self.h/material.conductivity
-            
+            grad = h(self.temp[ij], self.velocity) * self.h / material.conductivity
+
             # The ficticious temperature according to forward difference scheme
             if not deriv:
-                return material.conductivity*self.temp[ij]*(1-grad)
-            
+                return material.conductivity * self.temp[ij] * (1 - grad)
+
             # The derivatives are used in the Newton-Raphson method
             elif deriv and not self.velocity:
                 # The derivative for natural convection
-                return material.conductivity*(1-4*grad/3)
-            
+                return material.conductivity * (1 - 4 * grad / 3)
+
             elif deriv and self.velocity:
                 # The derivative for forced convection
-                return material.conductivity*(1-grad)
-        
+                return material.conductivity * (1 - grad)
+
         # for the central difference scheme
         else:
             # find the inner neighbour of the point
-            d_i = ij[0]-cds_outer_pos[0]
-            d_j = ij[1]-cds_outer_pos[1]
-            ij_in = (ij[0]+d_i, ij[1]+d_j)
-            
+            d_i = ij[0] - cds_outer_pos[0]
+            d_j = ij[1] - cds_outer_pos[1]
+            ij_in = (ij[0] + d_i, ij[1] + d_j)
+
             # the convection contribution is now scaled            
-            grad = 2*h(self.temp[ij], self.velocity)*self.h \
-                    / material.conductivity
-            
+            grad = 2 * h(self.temp[ij], self.velocity) * self.h \
+                   / material.conductivity
+
             # return ficticious temperature with central difference scheme
             if not deriv:
-                return material.conductivity* \
-                    (self.temp[ij_in]-self.temp[ij]*grad)
-            
+                return material.conductivity * \
+                       (self.temp[ij_in] - self.temp[ij] * grad)
+
             # for central difference scheme we have two partial derivatives
             # for the point itself and its inner neighbour
-            elif deriv and not self.velocity:
+            if deriv and not self.velocity:
                 # for natural convection, returns [point_deriv, nb_deriv]
-                return -material.conductivity*4*grad/3, material.conductivity
-            
-            
-            elif deriv and self.velocity:
+                return -material.conductivity * 4 * grad / 3, material.conductivity
+
+            if deriv and self.velocity:
                 # for natural convection, returns [point_deriv, nb_deriv]
-                return -material.conductivity*grad, material.conductivity
+                return -material.conductivity * grad, material.conductivity
 
     def show(self, err):
         """
@@ -360,23 +354,23 @@ class Solver(ABC):
         """
         # Set up heat map figure
         fig = plt.figure()
-        plt.title(self.sys.name+" Heat Map")
+        plt.title(self.sys.name + " Heat Map")
         plt.xlabel("x in mm")
         plt.ylabel("y in mm")
-        
-        #adjust axes
-        x_y = np.array(self.sys.layout.shape)/self.sys.resolution
+
+        # adjust axes
+        x_y = np.array(self.sys.layout.shape) / self.sys.resolution
         ext = [0, x_y[1], 0, x_y[0]]
-        
+
         # show plot and add temperature reference
         im = plt.imshow(self.temp, cmap="hot", extent=ext)
         cb = plt.colorbar(im)
         cb.ax.set_ylabel("°C", rotation=0, va="bottom")
-        
+
         # add label giving processor temperature and relative error
-        label = r"$T_{p}$ = "+str(round(np.mean(self.temp[self.core]), 2)) \
-                + r"$\pm$"+str(err)+"°C"
-        plt.text(2, 2, 
+        label = r"$T_{p}$ = " + str(round(np.mean(self.temp[self.core]), 2)) \
+                + r"$\pm$" + str(err) + "°C"
+        plt.text(2, 2,
                  label,
                  bbox=dict(facecolor='white', alpha=0.8))
         fig.show()
@@ -391,9 +385,6 @@ class Solver(ABC):
         None.
 
         """
-        pass
-
-
 
 
 class ExactSolver(Solver):
@@ -461,47 +452,44 @@ class ExactSolver(Solver):
         """
         start = t.time()
         mat = np.copy(self.mat)
-        
+
         # loop over all the points (the RHS vector)
-        for i in range(len(self.map)):
-            pos = self.map[i]
+        for i, pos in enumerate(self.map):
             matter = self.sys.materials[self.sys.layout[pos]]
             # For each neighbour that is air, add a forward difference scheme
             # forced convection contribution
             for _ in self.outer_nb_infos[i][2:]:
-                mat[i, i] -= h(0, self.velocity)*self.h
+                mat[i, i] -= h(0, self.velocity) * self.h
                 mat[i, i] += matter.conductivity
-        
+
         # personally implemented linear algebra (slower)
         if kp_linalg:
             # This needs much higher accuracy as its a non-iterative method,
             # cannot tolerate initial errors
             T = linalg.jac_solve(mat, self.b_vector, err)
-        
+
         # numpy linear algebra (orders of magnitude faster)
         else:
             T = np.linalg.solve(mat, self.b_vector)
-        
+
         # update the solver temperatures based on the solution
-        for i in range(len(self.map)):
-            self.temp[self.map[i]] = T[i]
-        
+        for i, pos in enumerate(self.map):
+            self.temp[pos] = T[i]
+
         end = t.time()
-        dt = end-start
-        
+        dt = end - start
+
         # turn relative temperatures into °C
-        self.temp += 20 # return to °C
-        
+        self.temp += 20  # return to °C
+
         # plot the heat map if required
         if show:
             self.show(err)
         print("\n\nRuntime: {}\
               \nFinal Processor Temp: {} / Final Error: {}".format(
-              dt, np.mean(self.temp[self.core]), err))
-        
+            dt, np.mean(self.temp[self.core]), err))
+
         return np.mean(self.temp[self.core])
-
-
 
 
 class RelaxSolver(Solver):
@@ -557,38 +545,37 @@ class RelaxSolver(Solver):
         None.
 
         """
-        
+
         # get a copy of the constant parts (power) of the RHS vector
         b = np.copy(self.b_vector)
-        
+
         # add contributions for all points with air neighbours
-        for i in range(len(self.outer_nb_infos)):
-            
+        for i, out_nb in enumerate(self.outer_nb_infos):
+
             # for each air neighbour
-            for nb in self.outer_nb_infos[i][2:]:
+            for nb in out_nb[2:]:
                 # fake boundary temperature according to fds
                 if not cds:
                     boundary_t = \
-                        self.gen_boundary_temp(self.outer_nb_infos[i][0], 
-                                               self.outer_nb_infos[i][1])
+                        self.gen_boundary_temp(out_nb[0],
+                                               out_nb[1])
                 # fake boundary temperature according to cds
                 else:
                     boundary_t = \
-                        self.gen_boundary_temp(self.outer_nb_infos[i][0], 
-                                               self.outer_nb_infos[i][1],
+                        self.gen_boundary_temp(out_nb[0],
+                                               out_nb[1],
                                                cds_outer_pos=nb)
                 # add (subtract) the fake temperature contributions.
                 b[i] -= boundary_t
-        
+
         # use the previously determined matrix inverse to calculate the temp
         T = self.inv.dot(b)
-        
+
         # update the solver 2d temperature array
-        for i in range(len(self.map)):
-            self.temp[self.map[i]] = T[i]
+        for i, pos in enumerate(self.map):
+            self.temp[pos] = T[i]
 
-
-    def solve(self, err, init_temp=0, verbose=False, show=False, 
+    def solve(self, err, init_temp=0, verbose=False, show=False,
               kp_linalg=False, cds=False):
         """
         The iterative method for solving the heat equation across the system
@@ -624,76 +611,75 @@ class RelaxSolver(Solver):
             The mean steady-state temperature across the processor.
 
         """
-        
-        #=====================================================================
-        #For this method it is fastest to first invert the matrix, as the
-        #same matrix is always used over and over again.
-        #=====================================================================
-        
+
+        # =====================================================================
+        # For this method it is fastest to first invert the matrix, as the
+        # same matrix is always used over and over again.
+        # =====================================================================
+
         if kp_linalg:
             # manually implemented solver, uses LU-decomposition and inversion
             self.inv = linalg.inv(linalg.jac_solve, self.mat)
         else:
             # exact numpy inversion
             self.inv = np.linalg.inv(self.mat)
-            
+
         # keep a copy of temperature to use as convergence reference
         t_0 = self.temp
-        
+
         # initial temperatures improve convergence in some cases
         for i in self.map:
-            self.temp[i]=init_temp
-            
+            self.temp[i] = init_temp
+
         # initialise one higher to start iterating
-        t_1 = t_0+1
+        t_1 = t_0 + 1
         i = 0
-        j = 0 # use to prevent convergence to an extremum
-        
+        j = 0  # use to prevent convergence to an extremum
+
         # get the initial error
-        e = np.mean(np.abs(t_1[self.core]-t_0[self.core]))
+        e = np.mean(np.abs(t_1[self.core] - t_0[self.core]))
 
         start_time = t.time()
 
         # even if updating error low, keep going for 200 iters to avoid
         # convergence
         while j < 200:
-            
+
             # keep copies and update temperature
             t_0 = np.copy(t_1)
             self.update_temp(cds)
             t_1 = self.temp
 
             i += 1
-            
-            #get error
-            e = np.mean(np.abs(t_1[self.core]-t_0[self.core]))
-            
+
+            # get error
+            e = np.mean(np.abs(t_1[self.core] - t_0[self.core]))
+
             # user output every 100 iterations as this iterates A LOT
-            if verbose and i%100==0:
+            if verbose and i % 100 == 0:
                 print("Iteration: {} \t Updating/Error: {} \t Max Temp: {}"
-                      .format(i, round(e, 3), round(np.max(t_0)+20, 3)))
+                      .format(i, round(e, 3), round(np.max(t_0) + 20, 3)))
 
             # start counting up j once error threshold is reached
             if e < err:
                 j += 1
-            
+
             # if we do diverge again, reset j to 0
             else:
                 j = 0
-        
+
         # calculations done in relative temperature, results returned in °C
-        self.temp += 20 # Return to °C
-        dt = t.time()-start_time
-        
+        self.temp += 20  # Return to °C
+        dt = t.time() - start_time
+
         # show heat map if required
         if show:
             self.show(err)
         print("\n\nRuntime: {} / Iterations: {} / Time/Iteration: {} \
               \nFinal Processor Temp: {} / Final Updating Error: {}".format(
-              dt, i, dt/i, np.mean(self.temp[self.core]), e))
-        
+            dt, i, dt / i, np.mean(self.temp[self.core]), e))
+
         return np.mean(self.temp[self.core])
-        
 
 
 class NewtonSolver(Solver):
@@ -704,7 +690,7 @@ class NewtonSolver(Solver):
     relaxation method for either convection mode.
     Works with FD-difference scheme only.
     """
-    
+
     def __init__(self, sys, mode="NATURAL", v=0):
         """
         Internally calls the Solver constructor.
@@ -731,8 +717,7 @@ class NewtonSolver(Solver):
 
         """
         super().__init__(sys, mode, v)
-    
-    
+
     def update_temp(self, kp_linalg=False, cds=False):
         """
         The method updating the temperature according to the newton-raphson-
@@ -752,83 +737,80 @@ class NewtonSolver(Solver):
         None.
 
         """
-        
-        #=====================================================================
-        #This method first creates a vector equation that equals zero,
-        #then considers it's partial derivatives and uses that to gain better
-        #estimates on the solution.
+
+        # =====================================================================
+        # This method first creates a vector equation that equals zero,
+        # then considers it's partial derivatives and uses that to gain better
+        # estimates on the solution.
         #
-        #Here, A will refer to the derivative matrix and f to the matrix
-        #equation that should equal zero.
-        #=====================================================================
-        
+        # Here, A will refer to the derivative matrix and f to the matrix
+        # equation that should equal zero.
+        # =====================================================================
+
         temp_vec = []
-        
-        
+
         # copy the matrix and the b vector initally
         A = np.copy(self.mat)
         b = np.copy(self.b_vector)
-        
-        
+
         # we modify the curvature stencil matrix and the RHS vector with power
         # contributions to get f and A
-        
+
         # loop over all non-air points
-        for i in range(len(self.map)):
-            
-            # find the position and material 
-            pos = self.map[i]
+        for i, pos in enumerate(self.map):
+
+            # find the position and material
             matter = self.sys.materials[self.sys.layout[pos]]
-            
+
             # add the temperatures to the current temperature vector estimate
             temp_vec.append(self.temp[pos])
-            
+
             # for each outer neighbour
             for nb in self.outer_nb_infos[i][2:]:
-                
+
                 # for forward difference scheme
                 if not cds:
                     # add derivative contributions to diagonal of deriv. matrix
                     A[i, i] += self.gen_boundary_temp(pos, matter, deriv=True)
-                    
+
                     # get the ficticious temperature at the boundary point
                     boundary_t = \
-                        self.gen_boundary_temp(self.outer_nb_infos[i][0], 
+                        self.gen_boundary_temp(self.outer_nb_infos[i][0],
                                                self.outer_nb_infos[i][1])
-                
+
                 # for cds, add derivative contributions to diagonal and inner
                 # (opposite to the air point) neighbours
                 else:
-                    
+
                     # find inner neighbour position and index
-                    diff = (pos[0]-nb[0], pos[1]-nb[1])
-                    in_nb = (pos[0]+diff[0], pos[1]+diff[1])
+                    diff = (pos[0] - nb[0], pos[1] - nb[1])
+                    in_nb = (pos[0] + diff[0], pos[1] + diff[1])
                     ind = self.map.index(in_nb)
-                    
+
                     # get the derivatives
                     derivs = self.gen_boundary_temp(pos, matter, deriv=True,
                                                     cds_outer_pos=nb)
-                    
+
                     # update the diagonal and inner neighbour pos in the deriv
                     # matrix
                     A[i, i] += derivs[0]
                     A[i, ind] += derivs[1]
-                    
+
                     # generate the boundary temperature (ficticious)
                     boundary_t = \
-                        self.gen_boundary_temp(self.outer_nb_infos[i][0], 
+                        self.gen_boundary_temp(self.outer_nb_infos[i][0],
                                                self.outer_nb_infos[i][1],
                                                cds_outer_pos=nb)
-                
+
                 # add ficticious temperature contributions to RHS vector copy
                 b[i] -= boundary_t
-                
+
         # get the current temperature estimates as an array
         temp_vec = np.array(temp_vec)
-        
+
         # create f, must equal 0 to find soln.
-        f = self.mat.dot(temp_vec)-b
-        
+        f = self.mat.dot(temp_vec) - b
+
         # Solve for difference between current and better temperature estimate
         if kp_linalg:
             # manual, less accurate jacobian solver
@@ -836,12 +818,11 @@ class NewtonSolver(Solver):
         else:
             # numpy, exact and fast solver
             delta_T = np.linalg.solve(A, -f)
-        
+
         # add updates to the solver heat map
-        for i in range(len(self.map)):
-            self.temp[self.map[i]] += delta_T[i]
-        
-    
+        for i, pos in enumerate(self.map):
+            self.temp[pos] += delta_T[i]
+
     def solve(self, err, verbose=False, show=False,
               kp_linalg=False, cds=False):
         """
@@ -875,54 +856,52 @@ class NewtonSolver(Solver):
             Mean steady-state temperature across the processor.
 
         """
-        
+
         # formatted output
         if verbose:
             print("Solving the System:\n\n", self.sys)
             print("\n\nSetting up...")
-        
+
         # keep temperature copies for convergence reference
         t_0 = self.temp
-        t_1 = t_0+1
+        t_1 = t_0 + 1
         i = 0
-        
+
         # get initial error (1 by means of initialisation)
-        e = np.mean(np.abs(t_1[self.core]-t_0[self.core]))
+        e = np.mean(np.abs(t_1[self.core] - t_0[self.core]))
 
         start_time = t.time()
         if verbose:
             print("Done! Now starting to iterate...")
-        
+
         # no overshooting guard needed here, this always converges well
         while e > err:
-            
+
             # update temperatures and keep references
             t_0 = np.copy(t_1)
             self.update_temp(kp_linalg, cds)
             t_1 = self.temp
-            
+
             # calculate updating error
-            e = np.mean(np.abs(t_1[self.core]-t_0[self.core]))
-            
+            e = np.mean(np.abs(t_1[self.core] - t_0[self.core]))
+
             i += 1
-            
+
             if verbose:
                 print("Iteration: {} \t Updating/Error: {} \t Max Temp: {}"
-                      .format(i, round(e, 3), round(np.max(t_0)+20, 3)))
-        
+                      .format(i, round(e, 3), round(np.max(t_0) + 20, 3)))
+
         # return temperatures in °C and not relative values
-        self.temp += 20 # return to °C
-        
+        self.temp += 20  # return to °C
+
         dt = t.time() - start_time
-        
-        
+
         # plot heat map if required
         if show:
             self.show(err)
-        
-        
+
         print("\n\nRuntime: {} / Iterations: {} / Time/Iteration: {} \
               \nFinal Processor Temp: {} / Final Updating Error: {}".format(
-              dt, i, dt/i, np.mean(self.temp[self.core]), e))
-        
+            dt, i, dt / i, np.mean(self.temp[self.core]), e))
+
         return np.mean(self.temp[self.core])
