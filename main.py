@@ -66,8 +66,7 @@ The following features are available through this interface:
     aged. They take extremely long even with optimal parameters.
 """
 
-
-#used to understand user input
+# used to understand user input
 yes = ("y", "yes", "1")
 no = ("n", "no", "0")
 
@@ -77,6 +76,7 @@ def cl():
     Clears the console
     """
     print("\n"*100)
+
 
 def manage_inp(label, defaults):
     """
@@ -108,8 +108,8 @@ enter seperated by a comma as in '2,4,5' \
             print("Defaulted to "+str(defaults))
     else:
         out = []
-        for i in range(len(defaults)):
-            tp = type(defaults[i])
+        for i, default in enumerate(defaults):
+            tp = type(default)
             try:
                 out.append(tp(inp_form[i]))
             except:
@@ -138,7 +138,7 @@ def run_system():
     if (inp_mode not in yes) and (inp_mode not in no):
         return
     
-    elif inp_mode in yes:
+    if inp_mode in yes:
         kp_linalg = True
     elif inp_mode in no:
         kp_linalg = False
@@ -149,7 +149,7 @@ def run_system():
     if (inp not in yes) and (inp not in no):
         return
     
-    elif inp in no:
+    if inp in no:
         fin_params = []
         mode = "N"
 
@@ -177,7 +177,6 @@ def run_system():
         
         else:
             raise ValueError("Invalid convection mode identifier.")
-
 
 
 def optimise():
@@ -318,6 +317,7 @@ def main():
         else:
             print(invalid_str)
         input("Press enter to continue.")
+
 
 if __name__ == "__main__":
     main()

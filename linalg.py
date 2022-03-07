@@ -7,6 +7,7 @@ Created on Thu Dec 17 22:28:02 2020
 
 import numpy as np
 
+
 def jac_solve(mat, vec, e=1e-5):
     """
     Implements the jacobian method to slove matrix equations.
@@ -47,14 +48,13 @@ def jac_solve(mat, vec, e=1e-5):
     
     # get initial error estimate
     err = np.abs(np.sum(x_1)-np.sum(x))/np.abs(np.sum(x))
-    while  err > e:
+    while err > e:
         
         # find new guess and keep copy from previously
         x = np.copy(x_1)
         x_1 = -diag_inv.dot(m.dot(x))+diag_inv.dot(vec)
         err = np.abs(np.sum(x_1)-np.sum(x))/np.abs(np.sum(x))
     return x_1
-
 
 
 def lu(mat):
@@ -137,13 +137,14 @@ def f_sub(mat, b):
     x = np.array([])
     
     # row-wise forward substitution
-    for i in range(len(b)):
-        x_new = b[i] - mat[i, :i].dot(x)
+    for i, b_v in enumerate(b):
+        x_new = b_v - mat[i, :i].dot(x)
         x = np.append(x, [x_new])
     # check if the results match
     if not np.all(np.abs(mat.dot(x)-b) < 1e-10):
         raise Exception("Forward substitution failed.")
     return x
+
 
 def b_sub(mat, b):
     """
@@ -186,6 +187,7 @@ def b_sub(mat, b):
         raise Exception("Backward substitution failed.")
     return x
 
+
 def lu_solve(mat, b):
     """
     combines LU-decomposition, forward and backward substitution to
@@ -222,6 +224,7 @@ def lu_solve(mat, b):
         raise Exception("LU solving failed.")
     return x
 
+
 def inv(sol, mat):
     """
     Generalised inversion method. Takes a solver function as an argument and
@@ -255,8 +258,7 @@ def inv(sol, mat):
     
     # make ndarray
     inv = np.stack(x)
-    
-    
+
     # check for consistency
     if np.any(mat.dot(inv)-i > 1e-10):
         raise Exception("Matrix inversion failed")

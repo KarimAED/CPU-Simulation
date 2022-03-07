@@ -47,14 +47,12 @@ def grid_search_hs(fun, l_params, ct_params, dist_params, t_thresh=80,
         Sorted ascending from lowest to highest temperature in the range.
 
     """
-    
-    
+
     # unpack values
     l_min, l_max, l_step = l_params
     ct_min, ct_max, ct_step = ct_params
     d_min, d_max, d_step = dist_params
-    
-    
+
     # Create ranges over which to perform the grid search
     lengths = np.arange(l_min, l_max, l_step)
     counts = np.arange(ct_min, ct_max, ct_step)
@@ -67,17 +65,17 @@ def grid_search_hs(fun, l_params, ct_params, dist_params, t_thresh=80,
     i = 1
     m = lengths.size*counts.size*dists.size
     
-    #A nested loop for each of the parameters
+    # A nested loop for each of the parameters
     for dist in dists:
-        #2d array slices to fill up
+        # 2d array slices to fill up
         temp_2d = []
         for count in counts:
-            #1d array slices to fill up
+            # 1d array slices to fill up
             temp_1d = []
             for l in lengths:
                 print("\n\n\n\nGridsearch run {} of {}".format(i, m))
                 
-                #Adds the temperature returned to the array slice
+                # Adds the temperature returned to the array slice
                 temp_1d.append(fun(int(l), int(count), int(dist), *args))
                 i += 1
             temp_2d.append(temp_1d)
@@ -97,15 +95,16 @@ def grid_search_hs(fun, l_params, ct_params, dist_params, t_thresh=80,
             # Set proper limits on the heat map and plot it
             ext = [lengths[0]-l_step/2, lengths[-1]+l_step/2,
                    counts[0]-ct_step/2, counts[-1]+ct_step/2]
-            im = plt.imshow(temps[i], cmap="hot", extent=ext,
-                               aspect="equal", interpolation="none")
+            im = plt.imshow(
+                temps[i], cmap="hot", extent=ext,
+                aspect="equal", interpolation="none"
+            )
             
             # Label axes and plot fin dist
             plt.title("Fin Separation: {}mm".format(dists[i]))
             plt.ylabel("Fin Number")
             plt.xlabel("Fin Length in mm")
-            
-            
+
             # Add area notation to each of the points
             for l in range(lengths.size):
                 for c in range(counts.size):
@@ -113,16 +112,18 @@ def grid_search_hs(fun, l_params, ct_params, dist_params, t_thresh=80,
                     # get the area
                     area = lengths[l]*counts[c]*(1+dists[i])/1000
                     
-                    #Conditional Formatting for points under temperature
-                    #threshold
+                    # Conditional Formatting for points under temperature
+                    # threshold
                     if temps[i, c, l] < t_thresh:
                         col = "g"
                     else:
                         col = "w"
                     
                     # Add the text
-                    plt.text(lengths[l], counts[c], round(area, 2),
-                       ha="center", va="center", color=col)
+                    plt.text(
+                        lengths[l], counts[c], round(area, 2),
+                        ha="center", va="center", color=col
+                    )
             
             # Add a reference for temperature levels and plot
             cb = plt.colorbar(im)
@@ -137,13 +138,15 @@ def grid_search_hs(fun, l_params, ct_params, dist_params, t_thresh=80,
         
         # Find new minimum
         m = np.amin(temps).copy()
-        pos = np.where(temps==m)
+        pos = np.where(temps == m)
         
         # Store minimum information
-        vals = [int(lengths[pos[2]][0]),
-                int(counts[pos[1]][0]),
-                int(dists[pos[0]][0]),
-                m]
+        vals = [
+            int(lengths[pos[2]][0]),
+            int(counts[pos[1]][0]),
+            int(dists[pos[0]][0]),
+            m
+        ]
         
         # Add area to the minimum info
         area = vals[0]*vals[1]*(1+vals[2])
@@ -159,7 +162,4 @@ def grid_search_hs(fun, l_params, ct_params, dist_params, t_thresh=80,
         fig = plt.figure()
         fun(*minimum[:-2], *args, show=True)
 
-    
     return min_vals
-
-    

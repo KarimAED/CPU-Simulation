@@ -303,11 +303,11 @@ class Solver(ABC):
                 return material.conductivity * self.temp[ij] * (1 - grad)
 
             # The derivatives are used in the Newton-Raphson method
-            elif deriv and not self.velocity:
+            if deriv and not self.velocity:
                 # The derivative for natural convection
                 return material.conductivity * (1 - 4 * grad / 3)
 
-            elif deriv and self.velocity:
+            if deriv and self.velocity:
                 # The derivative for forced convection
                 return material.conductivity * (1 - grad)
 

@@ -4,6 +4,8 @@ Created on Mon Dec 14 18:47:25 2020
 
 @author: Karim
 """
+
+
 def h_0(T):
     """
     Natural Convection in W/mm^2K
@@ -20,9 +22,10 @@ def h_0(T):
         The amount of natural convection for the given T.
 
     """
-    if not (isinstance(T, float) or isinstance(T, int)):
+    if not isinstance(T, (float, int)):
         raise TypeError("T must be a float or an int.")
     return 1.31*(T**(1/3))*1e-6
+
 
 def h_f(v):
     """
@@ -43,6 +46,7 @@ def h_f(v):
         raise TypeError("v must be a float or an int.")
     return (11.4+5.7*v)*1e-6
 
+
 def h(T, v):
     """
     The convection function in W/mm^2K
@@ -60,9 +64,8 @@ def h(T, v):
         convection parameter.
 
     """
-    if not (isinstance(v, float) or isinstance(v, int)):
+    if not isinstance(v, (float, int)):
         raise TypeError("v must be a float or an int.")
     if v == 0:
         return h_0(T)
-    else:
-        return h_f(v)
+    return h_f(v)
