@@ -42,7 +42,7 @@ def h_f(v):
         The amount of forced convection at this wind speed.
 
     """
-    if not (isinstance(v, float) or isinstance(v, int)):
+    if not isinstance(v, (float, int)):
         raise TypeError("v must be a float or an int.")
     return (11.4+5.7*v)*1e-6
 
